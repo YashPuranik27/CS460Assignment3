@@ -75,7 +75,6 @@ def determine_z(reading_fname):
 
 
 if __name__ == '__main__':
-    # Setup argument parser
     parser = argparse.ArgumentParser(description='Simulate noisy robot motion and sensor readings')
     parser.add_argument('--plan', required=True, help='controls')
     parser.add_argument('--map', required=True, help='landmarks')
@@ -83,7 +82,6 @@ if __name__ == '__main__':
     parser.add_argument('--sensing', required=True, help='readings')
     args = parser.parse_args()
 
-    # Load and process data
     landmarks = load_polygons(args.map)
     executed_controls = actuation_model(load_polygons(args.plan))
     gt_poses = get_gt(executed_controls)
