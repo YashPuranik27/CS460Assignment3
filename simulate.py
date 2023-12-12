@@ -90,6 +90,6 @@ if __name__ == '__main__':
     sensed_controls = odometry_model(executed_controls, determine_z(args.sensing))
     readings = get_readings(sensed_controls, gt_poses, landmarks)
 
-    # Save ground truths and readings (comment these two out to disable)
+    # Save ground truths and readings (comment these two out to disable) TODO: COMMENT THE BOTTOM OUT TO DISABLE SAVING
     save_polygons(gt_poses, args.execution)
     save_polygons(readings, args.sensing)
