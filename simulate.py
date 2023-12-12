@@ -75,7 +75,6 @@ def determine_z(reading_fname):
 
 
 if __name__ == '__main__':
-    # Setup argument parser
     parser = argparse.ArgumentParser(description='Simulate noisy robot motion and sensor readings')
     parser.add_argument('--plan', required=True, help='controls')
     parser.add_argument('--map', required=True, help='landmarks')
@@ -83,13 +82,12 @@ if __name__ == '__main__':
     parser.add_argument('--sensing', required=True, help='readings')
     args = parser.parse_args()
 
-    # Load and process data
     landmarks = load_polygons(args.map)
     executed_controls = actuation_model(load_polygons(args.plan))
     gt_poses = get_gt(executed_controls)
     sensed_controls = odometry_model(executed_controls, determine_z(args.sensing))
     readings = get_readings(sensed_controls, gt_poses, landmarks)
 
-    # Save ground truths and readings (comment these two out to disable)
+    # Save ground truths and readings (comment these two out to disable) TODO: COMMENT THE BOTTOM OUT TO DISABLE SAVING
     save_polygons(gt_poses, args.execution)
     save_polygons(readings, args.sensing)

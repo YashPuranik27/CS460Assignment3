@@ -146,9 +146,9 @@ def visualize(controls, landmarks, X, Y):
 
 if __name__ == '__main__':
     start = genInitPose()
-    X = 4  # change X (change for each control)
-    Y = 2  # change Y (change for each control)
+    X = 0  # change X (change for each control)
+    Y = 1  # change Y (change for each control)
     controls = generate_controls(start)
     landmarks = load_polygons('maps/landmark_0.npy')  # TODO: CHANGE landmark WHEN NEEDED
-    # store_controls(controls, start, X, Y, anim=True)
+    store_controls(controls, start, X, Y, anim=True)  # TODO: REMOVE comment "#" IF YOU NEED TO STORE CONTROLS
     animate(landmarks, start, controls)
