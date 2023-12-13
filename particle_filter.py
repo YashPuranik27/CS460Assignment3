@@ -5,15 +5,46 @@ from numpy.linalg import norm
 from numpy.random import randn, uniform
 import scipy.stats
 import matplotlib.pyplot as plt
-from filterpy.monte_carlo import systematic_resample
+from matplotlib.animation import FuncAnimation
+from controls import create_plot, load_polygons
+import matplotlib.patches as patches
+from matplotlib.transforms import Affine2D
+from controls_driver import Car
 
+firstPlot=True
+praticles=[]
 
 np.random.seed(43)
 
 def resample_from_index(particles, weights, indexes):
-    particles[:] = particles[indexes]
-    weights[:] = weights[indexes]
-    weights.fill(1.0 / len(weights))
+
+    print("............. resample from index", particles)
+    #particles[:] = particles[indexes]
+    #weights.resize(len(particles))
+    #weights.fill(1.0 / len(weights))
+
+
+    new_particles = []
+    # Normalize weights
+    norm_weights = weights / np.sum(weights)
+
+    # Draw representative sample
+    num_particles = len(particles)
+    indices = [np.random.choice(np.arange(0, num_particles),
+                                    p=norm_weights) for i in range(num_particles)]
+
+    print("------------- indices", indices, weights, norm_weights)
+
+    for i in indices:
+        new_particles.append(particles[i])
+    assert num_particles == len(new_particles)
+
+    # Update particles
+    return new_particles
+
+
+
+
 
 def get_uniform_particles(xRange, yRange, headingRange, N):
     particles = np.empty((N, 3))
@@ -96,34 +127,110 @@ def determine_z(reading_fname):
 
 
 #move each particle by control
-def predict(particles, u, std, dt=1.):
-    """ move according to control input u (heading change, velocity)
-    with noise Q (std heading change, std velocity)`"""
+def move(particles, u, car):
+    #move according to control input u (velocity, theta)
 
-    N = len(particles)
-    # update heading
-    particles[:, 2] += u[0] + (randn(N) * std[0])
-    particles[:, 2] %= 2 * np.pi
+    particles[:, 0] += u[0]*np.cos(particles[:, 2])
+    particles[:, 1] += u[0]*np.sin(particles[:, 2])
+    particles[:, 2] += u[1]*car.dt
 
-    # move in the (noisy) commanded direction
-    dist = (u[1] * dt) + (randn(N) * std[1])
-    particles[:, 0] += np.cos(particles[:, 2]) * dist
-    particles[:, 1] += np.sin(particles[:, 2]) * dist
 
+
+def Gaussian(mu, sigma=1.0, x=0.0):
+    # calculates the probability of x for 1-dim Gaussian with mean mu and var. sigma
+    return math.exp(- ((mu - x) ** 2) / (sigma ** 2) / 2.0) / math.sqrt(2.0 * math.pi * (sigma ** 2))
+
+
+def measurement_prob(x, y, landmarks):
+    # calculates how likely a measurement should be
+
+    prob = 1.0
+
+    for i in range(len(landmarks)):
+        #dist = math.sqrt(((x - landmarks[i][0]) ** 2) + ((y - landmarks[i][1]) ** 2))
+
+        dist = math.sqrt(49)
+        prob *= Gaussian(dist)
+
+    return prob
+
+
+def UpdateWeights(weights, particles, landmarks):
+    probability = []
+    Sum = 0
+    for i in range(len(particles)):
+        #mean = sensorModel.DistanceToSensorValue(self.particles[4][i], MainSensor)
+        #sigma = sensorModel.CalculateSigma(self.particles[4][i], MainSensor)
+        #x = sensorModel.DistanceToSensorValue(self.DistanceValues[MainSensor] + RobotRadius, MainSensor)
+        prob = measurement_prob(particles[i][0], particles[i][1], landmarks)
+
+        probability.append(prob)
+        Sum += prob
+
+    if Sum == 0:
+        for i in range(len(weights)):
+            weights[i] = 1 / len(weights)
+    else:
+        for i in range(len(weights)):
+            weights[i] = probability[i] / Sum
 
 #Normalizing the weights so they sum to one turns them into a probability distribution.
 #The particles those that are closest to the robot
 #will generally have a higher weight than ones far from the robot.
-def update(particles, weights, z, R, landmarks):
-    for i, landmark in enumerate(landmarks):
-        distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
-        weights *= scipy.stats.norm(distance, R).pdf(z[i])
+def update_particles(particles, weights, z, R, landmarks):
+
+    print("--landmarks", landmarks)
+    #for i, landmark in enumerate(landmarks):
+    #    distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
+
+        #update weight
+
+
+
+        #weights *= scipy.stats.norm(distance, R).pdf(z[i])
+
+    UpdateWeights(weights, particles, landmarks)
 
     weights += 1.e-300      # avoid round-off to zero
     weights /= sum(weights) # normalize
 
+
+
 def neff(weights):
     return 1. / np.sum(np.square(weights))
+
+
+def stratified_resample(weights):
+    N = len(weights)
+    # make N subdivisions, chose a random position within each one
+    positions = (random(N) + range(N)) / N
+
+    indexes = np.zeros(N, 'i')
+    cumulative_sum = np.cumsum(weights)
+    i, j = 0, 0
+    while i < N:
+        if positions[i] < cumulative_sum[j]:
+            indexes[i] = j
+            i += 1
+        else:
+            j += 1
+    return indexes
+
+
+def systematic_resample(weights):
+    N = len(weights)
+    positions = (np.arange(N) + np.random.random()) / N
+
+    indexes = np.zeros(N, 'i')
+    cumulative_sum = np.cumsum(weights)
+    i, j = 0, 0
+    while i < N and j < N:
+        if positions[i] < cumulative_sum[j]:
+            indexes[i] = j
+            i += 1
+        else:
+            j += 1
+    return indexes
 
 
 def estimate(particles, weights):
@@ -142,8 +249,8 @@ def run_pf(landmarks, N):
     sensor_std_err=.1,
     do_plot=True
     plot_particles=False,
-    xlim=(0, 20)
-    ylim=(0, 20)
+    xlim=(0, 2)
+    ylim=(0, 2)
     initial_x=None
 
     #landmarks = np.array([[-1, 2], [5, 10], [12, 14], [18, 21]])
@@ -156,7 +263,7 @@ def run_pf(landmarks, N):
     #if initial_x is not None:
     #    particles = create_gaussian_particles(mean=initial_x, std=(5, 5, np.pi / 4), N=N)
     #else:
-    particles = get_uniform_particles((0, 20), (0, 20), (0, 6.28), N)
+    particles = get_uniform_particles((0, 2), (0, 2), (0, 6.28), N)
     weights = np.ones(N) / N
 
     if plot_particles:
@@ -174,17 +281,19 @@ def run_pf(landmarks, N):
         zs = (norm(landmarks - robot_pos, axis=1) +(randn(NL) * sensor_std_err))
 
         # move diagonally forward to (x+1, x+1)
-        predict(particles, u=(0.00, 1.414), std=(.2, .05))
+        #move(particles, u=(0.00, 1.414), std=(.2, .05))
 
         # incorporate measurements
-        update(particles, weights, z=zs, R=sensor_std_err,
-                   landmarks=landmarks)
+        update_particles(particles, weights, z=zs, R=sensor_std_err, landmarks=landmarks)
 
         # resample if too few effective particles
         if neff(weights) < N / 2:
             indexes = systematic_resample(weights)
+            print("...........indexes ", indexes)
             resample_from_index(particles, weights, indexes)
             assert np.allclose(weights, 1 / N)
+
+
         mu, var = estimate(particles, weights)
         xs.append(mu)
 
@@ -202,11 +311,175 @@ def run_pf(landmarks, N):
     plt.show()
 
 
+
+def load_landmark_readings(readings):
+    return np.array(readings[2::2])
+
+
+def load_sensed_controls(readings):
+    return np.array(readings[1::2])
+
+
+def get_body(ax, center, angle_degrees, width=0.2, height=0.1, color='black'):
+    x, y = center
+    rect = patches.Rectangle((x - width / 2, y - height / 2), width, height,
+                             linewidth=1, edgecolor=color, facecolor='none')
+    rect.set_transform(Affine2D().rotate_deg_around(x, y, angle_degrees) + ax.transData)
+    return rect
+
+
+"""def get_landmark_pos(measure, pos):
+    return np.array([np.array([dist * np.cos(angle), dist * np.sin(angle)]) + pos[:2] for dist, angle in measure])"""
+
+
+def estimate_landmark_position(robot_x, robot_y, robot_theta, measurements):
+    cos_theta, sin_theta = math.cos(robot_theta), math.sin(robot_theta)
+    return np.array([
+        [
+            robot_x + distance * math.cos(angle) * cos_theta - distance * math.sin(angle) * sin_theta,
+            robot_y + distance * math.cos(angle) * sin_theta + distance * math.sin(angle) * cos_theta
+        ]
+        for distance, angle in measurements
+    ])
+
+
+
+def do_pf(praticles, u, xs, pos, car, weights):
+    # move based on noisy odometry measurement
+    sensor_std_err = .1
+
+    print("======= u ", u, praticles)
+    move(particles, u, car)
+    print("after move ", praticles, weights)
+
+
+    # incorporate measurements
+
+
+    # distance from robot to each landmark
+    N = len(particles)
+
+    zs = (norm(landmarks - pos, axis=1))
+
+    print("before update", particles)
+    update_particles(particles, weights, z=zs, R=sensor_std_err, landmarks=landmarks)
+
+
+    print("after update", particles, weights)
+
+
+    #resample if too few effective particles
+    if neff(weights) < N / 2:
+        indexes = systematic_resample(weights)
+        new_particles = resample_from_index(particles, weights, indexes)
+        praticles = new_particles.copy()
+        #assert np.allclose(weights, 1 / N)
+
+    print("before estimate ", praticles)
+
+    mu, var = estimate(particles, weights)
+
+    print("after estimate ", praticles)
+    xs.append(mu)
+
+
+def update(frame, sensed, sensors, car, visited1, landmarks, landmark_plot, trace1, visited2, poses, xs):
+
+    global praticles
+
+    N = len(particles)
+
+
+    # Update car1 state and plot
+    car.u = sensed[frame]
+
+    car.next_control()
+    car.get_body()
+    car.ax.add_patch(car.body)
+    x, y, theta = car.q
+    visited1.append((x, y))
+    trace1.set_data(*zip(*visited1))
+    weights = np.ones(N) / N
+
+    # Update landmarks based on estimated positions
+    landmark_positions = estimate_landmark_position(poses[frame][0], poses[frame][1], poses[frame][2], sensors[frame])
+    landmark_plot.set_offsets(landmark_positions)
+
+
+    # Update ground truth trace
+    visited2.append(poses[frame][:2])
+    #trace2.set_data(*zip(*visited2))
+
+
+    #clear_particles = plt.scatter(particles[:, 0], particles[:, 1], color='white', marker=',', s=1)
+    pos = (x, y)
+    do_pf(particles, car.u, xs, pos, car, weights)
+    new_particles = plt.scatter(particles[:, 0], particles[:, 1], color='k', marker=',', s=1)
+
+
+    return [car.body, trace1, landmark_plot, new_particles]
+
+def show_scene(ax):
+    ax.set_xlim(0, 2)
+    ax.set_ylim(0, 2)
+    ax.set_aspect('equal')
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.grid(True)
+    plt.show()
+
+
+def show_animation(landmarks, initPose, controls, sensors, poses, xs):
+    global firstPlot, praticles
+
+
+    dead_reckon_car = Car(ax=create_plot(), startConfig=initPose)
+
+    #particles = get_uniform_particles((0, 2), (0, 2), (0, 5), nParticles)
+    # print(particles)
+    #run_pf(landmarks, nParticles)
+
+    visited1, visited2 = [], []
+    car_trace, = plt.plot([], [], 'ro', label='Car Trace')
+    #gt_trace, = plt.plot([], [], '', label='', color='white')
+
+
+    for frame in range(200):
+        plt.clf()
+        ax = plt.gca()
+        plt.xlim(0, 2)
+        plt.ylim(0, 2)
+
+        landmark_plot = plt.scatter(landmarks[:, 0], landmarks[:, 1], color='red', marker='x')
+
+        plt.scatter(particles[:, 0], particles[:, 1], color='k', marker=',', s=1, label='Particles')
+        plt.scatter(landmarks[:, 0], landmarks[:, 1], alpha=1, color='blue', label='Landmarks')
+
+        update(frame, controls, sensors, dead_reckon_car, visited1, landmarks, landmark_plot, car_trace, visited2, poses, xs)
+
+        plt.pause(0.05)
+    #ani = FuncAnimation(dead_reckon_car.fig, update, frames=200,
+    #                    fargs=(controls, sensors, dead_reckon_car, visited1, landmarks, landmark_plot, car_trace, visited2, poses, xs),
+    #                    interval=200, blit=True, repeat=False)
+
+
+
+
+        plt.legend()
+        plt.show()
+
+
 if __name__ == '__main__':
+
+    global particles
     # Setup argument parser
-    print("start...................")
-    parser = argparse.ArgumentParser(description='Simulate noisy robot motion and sensor readings')
+
+    parser = argparse.ArgumentParser(description='Particle Filter for localization')
+    #parser.add_argument('--map', required=True, help='landmarks')
+    #parser.add_argument('--sensing', required=True, help='readings')
+    #parser.add_argument('--num_particles', required=True, help='nParticles')
+
     parser.add_argument('--map', required=True, help='landmarks')
+    parser.add_argument('--execution', required=True, help='gts')
     parser.add_argument('--sensing', required=True, help='readings')
     parser.add_argument('--num_particles', required=True, help='nParticles')
     #parser.add_argument('--estimates', required=True, help='readings')
@@ -214,18 +487,34 @@ if __name__ == '__main__':
 
 
     # Load and process data
-    landmarks = load_polygons(args.map)
-    print(landmarks)
+    #landmarks = load_polygons(args.map)
+    #print(landmarks)
 
-    readings = load_polygons(args.sensing)
-    print(readings)
+    #landmark_plot = plt.scatter(landmarks[:, 0], landmarks[:, 1], color='blue')
+
+
+    #readings = load_polygons(args.sensing)
+    #print(readings)
 
     nParticles=int(args.num_particles)
-    print(nParticles)
+    particles = get_uniform_particles((0, 2), (0, 2), (0, 5), nParticles)
+    #run_pf(landmarks, nParticles)
 
-    #particles = get_uniform_particles((0, 1), (0, 1), (0, 5), 100)
-    #print(particles)
-    run_pf(landmarks, nParticles)
+
+    # Load data
+    landmarks = load_polygons(args.map)
+    readings = load_polygons(args.sensing)
+    landmark_readings = load_landmark_readings(readings)
+    gt = load_polygons(args.execution)
+
+
+    # Extract sensed controls and landmark measurements
+    sensed_controls = load_sensed_controls(readings)
+
+    # Show animation
+
+    xs=[]
+    show_animation(landmarks, readings[0], sensed_controls, landmark_readings, gt, xs)
 
     #executed_controls = actuation_model(load_polygons(args.plan))
     #gt_poses = get_gt(executed_controls)
@@ -248,9 +537,12 @@ if __name__ == '__main__':
     #it will be nice to draw a bar to indicates the robot's orientation
     # plot all particles on the map do you cna see how particles move over consecutive iterations
 
-    # the particle filter algorithm does need the map of landmarks as input in order to compute the likelihood of landmark observations from different robot pose estimates
+    # the particle filter algorithm does need the map of landmarks as input
+    # in order to compute the likelihood of landmark observations from different robot pose estimates
 
-    #store each iteration of the algorithm the mean particle estimate for the (x, y , theta) coordinates of the robot, the format is similar to the ground truth
+    #store each iteration of the algorithm
+    # the mean particle estimate for the (x, y , theta) coordinates of the robot,
+    # the format is similar to the ground truth
 
 
 
