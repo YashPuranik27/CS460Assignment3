@@ -36,11 +36,11 @@ def generate_plots(gts, estimates):
 
     # Plot Euclidean distance between gts and estimates on the first subplot
     ax1.plot(np.arange(201), np.linalg.norm(gts[:, 0:2] - estimates[:, 0:2], axis=1), '.-')
-    ax1.set_ylabel('Euclidean Distance')
+    ax1.set_ylabel('Translational error relative to the ground truth pose (Euclidean Distance)')
 
     # Plot angular distance on the second subplot
     ax2.plot(np.arange(201), angular_distance(gts[:, 2], estimates[:, 2]), '.-')
-    ax2.set_ylabel('Angular Distance')
+    ax2.set_ylabel('Rotational error relative to the ground truth pose (Angular Distance')
     ax2.set_xlabel('time step')
 
     plt.show()  # Display the plots
