@@ -6,6 +6,9 @@ from controls import load_polygons, save_polygons, next_control
 np.random.seed(43)
 
 
+# This function simulates the robot's execution of planned controls with added noise. It iteratively adds Gaussian
+# noise to each control command (velocity and steering angle) and clips the resulting executed control to stay within
+# specified bounds.
 def actuation_model(planned_controls):
     exec_controls = [planned_controls[0]]
 
@@ -19,6 +22,8 @@ def actuation_model(planned_controls):
     return np.array(exec_controls, dtype='object')
 
 
+# Simulates the sensed controls based on executed controls and adds noise to them.
+# The amount of noise added is based on a boolean parameter 'z', which determines the level of noise (low or high).
 def odometry_model(executed_controls, z=True):
     sensed_controls = [executed_controls[0]]
     std_v, std_phi = (0.05, 0.1) if z else (0.1, 0.3)
@@ -32,6 +37,8 @@ def odometry_model(executed_controls, z=True):
     return np.array(sensed_controls, dtype='object')
 
 
+# This function simulates a sensor that measures the distance and angle to each landmark from the robot's position.
+# The measurements are made relative to the robot's position and orientation and include added Gaussian noise.
 def landmark_sensor(ground_truth_x, ground_truth_y, ground_truth_theta, landmarks):
     visible_landmarks_local = []
 
@@ -52,6 +59,7 @@ def landmark_sensor(ground_truth_x, ground_truth_y, ground_truth_theta, landmark
     return np.array(visible_landmarks_local)
 
 
+# Calculates the ground truth poses of the robot based on the executed controls, using a kinematic model.
 def get_gt(executed_controls):
     gt = [executed_controls[0]]
     for u in executed_controls[1:]:
@@ -59,6 +67,7 @@ def get_gt(executed_controls):
     return np.array(gt)
 
 
+# Combines sensed controls and landmark sensor readings for each pose in the ground truth trajectory.
 def get_readings(sensed_controls, gt_poses, landmarks):
     readings = [gt_poses[0]]
     for i in range(1, 201):
@@ -67,6 +76,7 @@ def get_readings(sensed_controls, gt_poses, landmarks):
     return np.array(readings, dtype='object')
 
 
+# A helper function to decide the noise level based on the presence of a specific character in a filename.
 def determine_z(reading_fname):
     if 'L' in reading_fname:
         return False
@@ -74,6 +84,12 @@ def determine_z(reading_fname):
         return True
 
 
+# Parses command-line arguments for the plan (planned controls), map (landmarks), execution (file to save ground
+# truths), and sensing (file to save sensor readings). Loads the landmarks and planned controls. Runs the actuation
+# model to get executed controls and calculates the ground truth poses. Determines the noise level for the odometry
+# model based on the sensing filename and generates the sensed controls. Combines the sensed controls with landmark
+# sensor readings to form the complete sensor readings. Optionally saves the ground truth poses and sensor readings
+# to files.
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Simulate noisy robot motion and sensor readings')
     parser.add_argument('--plan', required=True, help='controls')
