@@ -11,8 +11,7 @@ import matplotlib.patches as patches
 from matplotlib.transforms import Affine2D
 from controls_driver import Car
 
-firstPlot=True
-praticles=[]
+#python  ./particle_filter.py --map maps/landmark_0.npy  --sensing readings/readings_0_1_H.npy --num_particles 100
 
 np.random.seed(43)
 
@@ -203,7 +202,7 @@ def neff(weights):
 def stratified_resample(weights):
     N = len(weights)
     # make N subdivisions, chose a random position within each one
-    positions = (random(N) + range(N)) / N
+    positions = (np.random(N) + range(N)) / N
 
     indexes = np.zeros(N, 'i')
     cumulative_sum = np.cumsum(weights)
@@ -333,7 +332,10 @@ def get_body(ax, center, angle_degrees, width=0.2, height=0.1, color='black'):
 
 
 def estimate_landmark_position(robot_x, robot_y, robot_theta, measurements):
-    cos_theta, sin_theta = math.cos(robot_theta), math.sin(robot_theta)
+    #cos_theta, sin_theta = math.cos(robot_theta), math.sin(robot_theta)
+
+    cos_theta = 1
+    sin_theta = 1
     return np.array([
         [
             robot_x + distance * math.cos(angle) * cos_theta - distance * math.sin(angle) * sin_theta,
@@ -383,12 +385,10 @@ def do_pf(praticles, u, xs, pos, car, weights):
     xs.append(mu)
 
 
-def update(frame, sensed, sensors, car, visited1, landmarks, landmark_plot, trace1, visited2, poses, xs):
+def update(frame, sensed, landmark_readings, car, visited1, landmarks, landmark_plot, trace1, visited2, particles, xs, initPose):
 
-    global praticles
 
     N = len(particles)
-
 
     # Update car1 state and plot
     car.u = sensed[frame]
@@ -402,12 +402,24 @@ def update(frame, sensed, sensors, car, visited1, landmarks, landmark_plot, trac
     weights = np.ones(N) / N
 
     # Update landmarks based on estimated positions
-    landmark_positions = estimate_landmark_position(poses[frame][0], poses[frame][1], poses[frame][2], sensors[frame])
-    landmark_plot.set_offsets(landmark_positions)
+    landmark_positions=[]
+    #landmark_positions = estimate_landmark_position(poses[frame][0], poses[frame][1], poses[frame][2], sensors[frame])
+    #landmark_observation = landmark_readings[frame]
+    #print("^^^^^^^^^^^^^^^^^^^^^^^^^^^ landmark_observation", landmark_observation)
+    #for i in range(len(landmark_observation)):
+    #    landmark_x = initPose[0]+(landmark_observation[i][0] * np.cos(landmark_observation[i][1]))
+    #    landmark_y = initPose[1]+(landmark_observation[i][0] * np.sin(landmark_observation[i][1]))
+    #    landmark_positions.append([landmark_x, landmark_y])
+
+    print("************************* initPos ", initPose)
+    landmark_positions = estimate_landmark_position(initPose[0], initPose[1], 1, landmark_readings[frame])
+    #print("^^^^^^^^^^^^^^^^^^^^^^^^^^^ landmarks", landmark_positions)
+
+    #landmark_plot.set_offsets(landmark_positions)
 
 
     # Update ground truth trace
-    visited2.append(poses[frame][:2])
+    #visited2.append(poses[frame][:2])
     #trace2.set_data(*zip(*visited2))
 
 
@@ -428,8 +440,13 @@ def show_scene(ax):
     plt.show()
 
 
-def show_animation(landmarks, initPose, controls, sensors, poses, xs):
-    global firstPlot, praticles
+def show_animation(landmarks, readings, xs, particles):
+
+    initPose = readings[0]
+    # Extract sensed controls and landmark measurements
+    controls = load_sensed_controls(readings)
+    landmark_readings  =   load_landmark_readings(readings)
+    print("!!!!!!!!!!!!!!!!!!!!! landmark_readings ", landmark_readings)
 
 
     dead_reckon_car = Car(ax=create_plot(), startConfig=initPose)
@@ -454,7 +471,7 @@ def show_animation(landmarks, initPose, controls, sensors, poses, xs):
         plt.scatter(particles[:, 0], particles[:, 1], color='k', marker=',', s=1, label='Particles')
         plt.scatter(landmarks[:, 0], landmarks[:, 1], alpha=1, color='blue', label='Landmarks')
 
-        update(frame, controls, sensors, dead_reckon_car, visited1, landmarks, landmark_plot, car_trace, visited2, poses, xs)
+        update(frame, controls, landmark_readings, dead_reckon_car, visited1, landmarks, landmark_plot, car_trace, visited2, particles, xs, initPose)
 
         plt.pause(0.05)
     #ani = FuncAnimation(dead_reckon_car.fig, update, frames=200,
@@ -470,31 +487,15 @@ def show_animation(landmarks, initPose, controls, sensors, poses, xs):
 
 if __name__ == '__main__':
 
-    global particles
     # Setup argument parser
 
     parser = argparse.ArgumentParser(description='Particle Filter for localization')
-    #parser.add_argument('--map', required=True, help='landmarks')
-    #parser.add_argument('--sensing', required=True, help='readings')
-    #parser.add_argument('--num_particles', required=True, help='nParticles')
-
     parser.add_argument('--map', required=True, help='landmarks')
-    parser.add_argument('--execution', required=True, help='gts')
+    #parser.add_argument('--execution', required=True, help='gts')
     parser.add_argument('--sensing', required=True, help='readings')
     parser.add_argument('--num_particles', required=True, help='nParticles')
     #parser.add_argument('--estimates', required=True, help='readings')
     args = parser.parse_args()
-
-
-    # Load and process data
-    #landmarks = load_polygons(args.map)
-    #print(landmarks)
-
-    #landmark_plot = plt.scatter(landmarks[:, 0], landmarks[:, 1], color='blue')
-
-
-    #readings = load_polygons(args.sensing)
-    #print(readings)
 
     nParticles=int(args.num_particles)
     particles = get_uniform_particles((0, 2), (0, 2), (0, 5), nParticles)
@@ -504,45 +505,15 @@ if __name__ == '__main__':
     # Load data
     landmarks = load_polygons(args.map)
     readings = load_polygons(args.sensing)
-    landmark_readings = load_landmark_readings(readings)
-    gt = load_polygons(args.execution)
+    #gt = load_polygons(args.execution)
 
 
-    # Extract sensed controls and landmark measurements
-    sensed_controls = load_sensed_controls(readings)
 
     # Show animation
 
     xs=[]
-    show_animation(landmarks, readings[0], sensed_controls, landmark_readings, gt, xs)
+    show_animation(landmarks, readings, xs, particles)
 
-    #executed_controls = actuation_model(load_polygons(args.plan))
-    #gt_poses = get_gt(executed_controls)
-    #sensed_controls = odometry_model(executed_controls, determine_z(args.sensing))
-    #readings = get_readings(sensed_controls, gt_poses, landmarks)
-
-    # Save ground truths and readings (comment these two out to disable)
-    #save_polygons(gt_poses, args.execution)
-    #save_polygons(readings, args.sensing)
-
-
-    #generate robot pose estimaties at each time step
-
-
-    #initialize all of theparticles at the same pose ( use initial (ground truth) robot pose
-
-
-    #genearte an animation that visualizes the particles at each iteration of the algorithm
-    #it should visualize at least the (x,y)location of the robot
-    #it will be nice to draw a bar to indicates the robot's orientation
-    # plot all particles on the map do you cna see how particles move over consecutive iterations
-
-    # the particle filter algorithm does need the map of landmarks as input
-    # in order to compute the likelihood of landmark observations from different robot pose estimates
-
-    #store each iteration of the algorithm
-    # the mean particle estimate for the (x, y , theta) coordinates of the robot,
-    # the format is similar to the ground truth
 
 
 
