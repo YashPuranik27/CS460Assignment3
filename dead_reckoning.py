@@ -9,6 +9,8 @@ from matplotlib.transforms import Affine2D
 import math
 
 
+# load_landmark_readings and load_sensed_controls extract the landmark and sensed controls input data from the .npy
+# files
 def load_landmark_readings(readings):
     return np.array(readings[2::2])
 
@@ -17,6 +19,7 @@ def load_sensed_controls(readings):
     return np.array(readings[1::2])
 
 
+# get_body creates the car that is positioned and rotated based on the parameters given
 def get_body(ax, center, angle_degrees, width=0.2, height=0.1, color='black'):
     x, y = center
     rect = patches.Rectangle((x - width / 2, y - height / 2), width, height,
@@ -29,6 +32,8 @@ def get_body(ax, center, angle_degrees, width=0.2, height=0.1, color='black'):
     return np.array([np.array([dist * np.cos(angle), dist * np.sin(angle)]) + pos[:2] for dist, angle in measure])"""
 
 
+# estimate_landmark_position basically calculates the estimated positions of the landmarks based on the position of
+# the robot and sensor measurements
 def estimate_landmark_position(robot_x, robot_y, robot_theta, measurements):
     cos_theta, sin_theta = math.cos(robot_theta), math.sin(robot_theta)
     return np.array([
@@ -40,6 +45,8 @@ def estimate_landmark_position(robot_x, robot_y, robot_theta, measurements):
     ])
 
 
+# update() literally just updates the state of the car and how it is represented on the plot. It also updates
+# the landmark positions based on the data from the "sensors", then it updates the cars trace and the ground truth (gt)
 def update(frame, sensed, sensors, car1, visited1, landmarks, trace1, visited2, trace2, poses):
     # Update car1 state and plot
     car1.u = sensed[frame]
@@ -61,6 +68,7 @@ def update(frame, sensed, sensors, car1, visited1, landmarks, trace1, visited2, 
     return [car1.body, trace1, trace2, landmarks]
 
 
+# show_animation uses FuncAnimation that repeatedly calls update() in order to animate the car
 def show_animation(landmarks, initPose, controls, sensors, poses):
     dead_reckon_car = Car(ax=create_plot(), startConfig=initPose)
     visited1, visited2 = [], []
@@ -70,14 +78,17 @@ def show_animation(landmarks, initPose, controls, sensors, poses):
 
     plt.scatter(landmarks[:, 0], landmarks[:, 1], label='Landmarks')
     ani = FuncAnimation(dead_reckon_car.fig, update, frames=200,
-                        fargs=(controls, sensors, dead_reckon_car, visited1, landmark_plot, car_trace, visited2, gt_trace, poses),
+                        fargs=(
+                            controls, sensors, dead_reckon_car, visited1, landmark_plot, car_trace, visited2, gt_trace,
+                            poses),
                         interval=100, blit=True, repeat=False)
     plt.legend()
     plt.show()
 
 
+# main method just gets the args via argparse, loads the data files that are parsed via argparse, then extracts the
+# readings and sensing data as well as call show_animation to display the animation
 if __name__ == '__main__':
-
     # Initialize argument parser
     parser = argparse.ArgumentParser(
         description='Visualize actual robot position and estimated position')
