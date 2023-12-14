@@ -15,13 +15,6 @@ from controls_driver import Car
 
 np.random.seed(43)
 
-def create_gaussian_particles(mean, std, N):
-    particles = np.empty((N, 3))
-    particles[:, 0] = mean[0] + (randn(N) * std[0])
-    particles[:, 1] = mean[1] + (randn(N) * std[1])
-    particles[:, 2] = mean[2] + (randn(N) * std[2])
-    particles[:, 2] %= 2 * np.pi
-    return particles
 
 
 def resample_from_index(particles, weights, indexes):
@@ -59,6 +52,13 @@ def resample_from_index_old(particles, weights, indexes):
 
 
 
+def get_gaussian_particles(mean, std, N):
+    particles = np.empty((N, 3))
+    particles[:, 0] = mean[0] + (randn(N) * std[0])
+    particles[:, 1] = mean[1] + (randn(N) * std[1])
+    particles[:, 2] = mean[2] + (randn(N) * std[2])
+    particles[:, 2] %= 2 * np.pi
+    return particles
 
 
 def get_uniform_particles(xRange, yRange, headingRange, N):
@@ -206,7 +206,12 @@ def update_particles(particles, weights, z, R, landmarks, gournd_readings):
     std_err = .1
     zs = []
 
-    for i, gournd_reading in enumerate(gournd_readings):    # distance from robot to each landmark
+    # distance from robot to each landmark
+    #zs = (norm(landmarks - robot_pos, axis=1) +
+    #      (randn(NL) * sensor_std_err))
+
+
+    for i, gournd_reading in enumerate(gournd_readings):
         zs.append(gournd_reading[0])
 
     print("--zs   ", zs)
@@ -220,10 +225,6 @@ def update_particles(particles, weights, z, R, landmarks, gournd_readings):
     weights += 1.e-300  # avoid round-off to zero
     weights /= sum(weights)  # normalize
 
-
-
-    weights += 1.e-300      # avoid round-off to zero
-    weights /= sum(weights) # normalize
 
     print("---------------------- WEIGHTS ", weights)
 
@@ -383,7 +384,7 @@ def estimate_landmark_position(robot_x, robot_y, robot_theta, measurements):
 def resample_particles(particles, weights):
     # ------------------------------------------------------------------------
     # calculate probability and "window" of particle getting picked in "resampling stage"
-    # IE get normalized cumulative weights
+    # get normalized cumulative weights
     # ------------------------------------------------------------------------
     normalized_prob = np.array(weights) / sum(weights)
     cumulative_prob = []
@@ -433,10 +434,7 @@ def do_pf(particles, u, xs, pos, car, weights, landmark_readings):
     # distance from robot to each landmark
     N = len(particles)
     zs = (norm(landmarks - pos, axis=1))
-    print("before update", particles)
     update_particles(particles, weights, z=zs, R=sensor_std_err, landmarks=landmarks, gournd_readings=landmark_readings)
-    print("after update", particles, weights)
-
 
 
     #-----------
@@ -449,6 +447,10 @@ def do_pf(particles, u, xs, pos, car, weights, landmark_readings):
         indexes = systematic_resample(weights)
         resample_from_index(particles, weights, indexes)
         assert np.allclose(weights, 1 / N)
+
+    #new_sample = np.random.choice(a=particles, size=N, replace=True, p=weights)
+    print("-------------------- NEW SAMPLE ", particles)
+    print("-------------------- NEW weights ", weights)
 
 
 
@@ -516,14 +518,11 @@ def show_animation(landmarks, readings, xs, nParticles, estFile):
 
     # create particles and weights
     # for known init position
-    particles = create_gaussian_particles(mean=initPose, std=(5, 5, np.pi / 4), N=nParticles)
+    #particles = get_gaussian_particles(mean=initPose, std=(2, 2, np.pi / 4), N=nParticles)
     # for unkonwn init position
-    #particles = create_uniform_particles((0, 2), (0, 2), (0, 6.28), nParticles)
+    particles = get_uniform_particles((0, 2), (0, 2), (0, 6.28), nParticles)
 
     # run_pf(landmarks, nParticles)
-
-
-
 
     # Extract sensed controls and landmark measurements
     controls = load_sensed_controls(readings)
@@ -540,7 +539,7 @@ def show_animation(landmarks, readings, xs, nParticles, estFile):
     car_trace, = plt.plot([], [], 'ro', label='Car Trace')
     #gt_trace, = plt.plot([], [], '', label='', color='white')
 
-    numFrame = 200
+    numFrame = len(landmark_observation)
 
     #for frame in range(200):
 
@@ -552,7 +551,8 @@ def show_animation(landmarks, readings, xs, nParticles, estFile):
 
     landmark_plot = plt.scatter(landmarks[:, 0], landmarks[:, 1], color='red', marker='x')
 
-    plt.scatter(particles[:, 0], particles[:, 1], color='k', marker=',', s=1, label='Particles')
+    #plt.scatter(particles[:, 0], particles[:, 1], color='k', marker=',', s=1, label='Particles')
+    plt.scatter(particles[:, 0], particles[:, 1], color='g', alpha=0.2)
     plt.scatter(landmarks[:, 0], landmarks[:, 1], alpha=1, color='blue', label='Landmarks')
 
         #update(frame, controls, landmark_readings, dead_reckon_car, visited1, landmarks, landmark_plot, car_trace, visited2, particles, xs, initPose)
