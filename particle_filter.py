@@ -141,14 +141,26 @@ def determine_z(reading_fname):
 
 
 
-#move each particle by control
+#move each particle by control+noise(odometry_model)
 def move(particles, u, car):
     #move according to control input u (velocity, theta)
+    z=True #noise Low or High
 
-    particles[:, 0] += u[0]*np.cos(particles[:, 2])
-    particles[:, 1] += u[0]*np.sin(particles[:, 2])
-    particles[:, 2] += u[1]*car.dt
+    print("particles before move =", particles)
 
+    for i, particle in enumerate(particles):
+        std_v, std_phi = (0.05, 0.1) if z else (0.1, 0.3)
+        noise = np.array([np.random.normal(0, std_v), np.random.normal(0, std_phi)])
+        noise = np.where(u == 0, 0, noise)
+        u_noise = u + noise
+
+        particle[0] += u_noise[0]*np.cos(particle[2])
+        particle[1] += u_noise[0]*np.sin(particle[2])
+        particle[2] += u_noise[1]*car.dt
+
+    print("  u = ", u, "u_noise = ", u_noise)
+
+    print("particles after move =", particles)
 
 
 def Gaussian(mu, sigma=1.0, x=0.0):
@@ -541,11 +553,8 @@ def show_animation(landmarks, readings, xs, nParticles, estFile):
 
     numFrame = len(landmark_observation)
 
-    #for frame in range(200):
+    #numFrame = 10
 
-    #for frame in range(10):
-        #plt.clf()
-        #ax = plt.gca()
     plt.xlim(0, 2)
     plt.ylim(0, 2)
 
