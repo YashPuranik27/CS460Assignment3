@@ -492,8 +492,9 @@ def update(frame, sensed, landmark_readings, car, visited1, landmarks, landmark_
 
     weights = np.ones(N) / N
 
-    print("************************* initPos ", initPose, "car x ", x, "car y ", y)
-    landmark_pos = estimate_landmark_position(initPose[0], initPose[1], 1, landmark_readings[frame])
+    #print("************************* initPos ", initPose, "car x ", x, "car y ", y)
+    #landmark_pos = estimate_landmark_position(initPose[0], initPose[1], 1, landmark_readings[frame])
+    landmark_plot.set_offsets(landmark_readings[frame]-landmarks)
     #print("^^^^^^^^^^^^^^^^^^^^^^^^^^^ landmarks", landmark_positions)
 
     #landmark_plot.set_offsets(landmark_positions)
@@ -530,9 +531,9 @@ def show_animation(landmarks, readings, xs, nParticles, estFile):
 
     # create particles and weights
     # for known init position
-    #particles = get_gaussian_particles(mean=initPose, std=(2, 2, np.pi / 4), N=nParticles)
+    particles = get_gaussian_particles(mean=initPose, std=(2, 2, np.pi / 4), N=nParticles)
     # for unkonwn init position
-    particles = get_uniform_particles((0, 2), (0, 2), (0, 6.28), nParticles)
+    #particles = get_uniform_particles((0, 2), (0, 2), (0, 6.28), nParticles)
 
     # run_pf(landmarks, nParticles)
 
