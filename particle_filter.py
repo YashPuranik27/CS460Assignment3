@@ -6,7 +6,7 @@ from numpy.random import randn, uniform
 import scipy.stats
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from controls import create_plot, load_polygons, save_polygons
+from controls import create_plot, load_polygons, save_polygons, next_control
 import matplotlib.patches as patches
 from matplotlib.transforms import Affine2D
 from controls_driver import Car
@@ -601,7 +601,3 @@ if __name__ == '__main__':
 
     xs=[]
     show_animation(landmarks, readings, xs, nParticles, estFile)
-
-
-
-

@@ -1,9 +1,13 @@
 import argparse
+import matplotlib
+matplotlib.use('TkAgg') # or 'TkAgg'
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from controls import load_polygons, create_plot
 from controls_driver import Car
+
+
 
 
 # This is a function to update the animation at each frame.
@@ -62,10 +66,11 @@ def play_animation(landmarks, gts, estimates):
     estimated_trace, = ax.plot(estimates[0][0], estimates[0][1], 'ko', label='Estimate Trace')
 
     # this creates an animation with 200 frames using the update() function
-    FuncAnimation(ax.figure, update_animation, frames=200,
+    animation = FuncAnimation(ax.figure, update_animation, frames=200,
                   fargs=(Car(ax, startConfig=gts[0]), gts, estimates, gt_trace, estimated_trace),
                   blit=True, repeat=False)
     plt.show()  # shows the animation
+    animation.save('animation.mp4')
 
 
 # main method
